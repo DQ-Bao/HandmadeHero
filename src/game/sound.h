@@ -3,13 +3,13 @@
 
 struct GameSoundOutput
 {
-	void* Samples;
-	u32 Size;
-	u32 SampleCount;
-	u32 SampleRate;
-	u16 AudioFormat;
-	u16 NumberOfChannels;
-	u16 BitsPerSample;
+	void* Samples = 0;
+	u32 Size = 0;
+	u32 SampleCount = 0;
+	u32 SampleRate = 48000;
+	u16 AudioFormat = 1;
+	u16 NumberOfChannels = 2;
+	u16 BitsPerSample = 16;
 };
 
 struct WAVEFile

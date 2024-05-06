@@ -13,6 +13,7 @@ struct Win32BackBuffer
     void* Memory;
     i32 Width;
     i32 Height;
+    i32 BytesPerPixel;
     i32 RowStride;
 };
 
@@ -47,13 +48,12 @@ internal WindowDimension Win32GetWindowDimension(HWND window)
 inline FILETIME Win32GetLastWriteTime(char* filename)
 {
     FILETIME lastWriteTime = {};
-    WIN32_FIND_DATA findData;
-    HANDLE file = FindFirstFileA(filename, &findData);
-    if (file != INVALID_HANDLE_VALUE)
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (GetFileAttributesEx(filename, GetFileExInfoStandard, &data))
     {
-        lastWriteTime = findData.ftLastWriteTime;
-        FindClose(file);
+        lastWriteTime = data.ftLastWriteTime;
     }
+    
     return lastWriteTime;
 }
 
@@ -99,8 +99,8 @@ internal void Win32ResizeBackBuffer(Win32BackBuffer* buffer, i32 width, i32 heig
 
     buffer->Width = width;
     buffer->Height = height;
-    i32 bytesPerPixel = 4;
-    buffer->RowStride = buffer->Width * bytesPerPixel;
+    buffer->BytesPerPixel = 4;
+    buffer->RowStride = buffer->Width * buffer->BytesPerPixel;
 
     buffer->Info.bmiHeader.biSize = sizeof(buffer->Info.bmiHeader);
     buffer->Info.bmiHeader.biWidth = buffer->Width;
@@ -109,15 +109,23 @@ internal void Win32ResizeBackBuffer(Win32BackBuffer* buffer, i32 width, i32 heig
     buffer->Info.bmiHeader.biBitCount = 32;
     buffer->Info.bmiHeader.biCompression = BI_RGB;
 
-    i32 bitmapMemorySize = (buffer->Width * buffer->Height) * bytesPerPixel;
+    i32 bitmapMemorySize = (buffer->Width * buffer->Height) * buffer->BytesPerPixel;
     buffer->Memory = VirtualAlloc(0, bitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 }
 
 internal void Win32UpdateWindowDisplay(HDC deviceContext, Win32BackBuffer* buffer,
                                        i32 windowWidth, i32 windowHeight)
 {
-    StretchDIBits(deviceContext,
+    PatBlt(deviceContext, 0, buffer->Height, buffer->Width, windowHeight - buffer->Height, BLACKNESS);
+    PatBlt(deviceContext, buffer->Width, 0, windowWidth - buffer->Width, windowHeight, BLACKNESS);
+    /*StretchDIBits(deviceContext,
                   0, 0, windowWidth, windowHeight,
+                  0, 0, buffer->Width, buffer->Height,
+                  buffer->Memory,
+                  &buffer->Info,
+                  DIB_RGB_COLORS, SRCCOPY);*/
+    StretchDIBits(deviceContext,
+                  0, 0, buffer->Width, buffer->Height,
                   0, 0, buffer->Width, buffer->Height,
                   buffer->Memory,
                   &buffer->Info,
@@ -202,19 +210,21 @@ POUND_PLATFORM_LOAD_FILE(PlatformLoadFile)
 
 internal void Win32ProcessMessages(HWND window, GameInput* input)
 {
+    POINT mousePos;
+    GetCursorPos(&mousePos);
+    ScreenToClient(window, &mousePos);
+    input->MousePositionX = mousePos.x;
+    input->MousePositionY = mousePos.y;
+    input->MouseLeft = (GetKeyState(VK_LBUTTON) & (1 << 15)) != 0;
+    input->MouseRight = (GetKeyState(VK_RBUTTON) & (1 << 15)) != 0;
+    input->MouseMiddle = (GetKeyState(VK_MBUTTON) & (1 << 15)) != 0;
+    input->MouseSideX = (GetKeyState(VK_XBUTTON1) & (1 << 15)) != 0;
+    input->MouseSideY = (GetKeyState(VK_XBUTTON2) & (1 << 15)) != 0;
     MSG message = {};
     while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE))
     {
         switch (message.message)
         {
-            case WM_MOUSEMOVE:
-            case WM_MOUSEHOVER:
-            {
-                WindowDimension dim = Win32GetWindowDimension(window);
-                input->MousePositionX = (message.lParam & 0xffffffff) - (dim.Width / 2);
-                input->MousePositionY = (dim.Height / 2) - (message.lParam >> 32);
-            }
-            break;
             case WM_SYSKEYDOWN:
             case WM_SYSKEYUP:
             {
@@ -233,65 +243,69 @@ internal void Win32ProcessMessages(HWND window, GameInput* input)
                 u32 VKCode = (u32)message.wParam;
                 bool isDown = (message.lParam & (1u << 31)) == 0;
                 bool wasDown = (message.lParam & (1 << 30)) != 0;
-                if (VKCode == 'W')
+                if (isDown != wasDown)
                 {
-                    input->KeyW = true;
-                }
-                else if (VKCode == 'A')
-                {
-                    input->KeyA = true;
-                }
-                else if (VKCode == 'S')
-                {
-                    input->KeyS = true;
-                }
-                else if (VKCode == 'D')
-                {
-                    input->KeyD = true;
-                }
-                else if (VKCode == 'Q')
-                {
-                    input->KeyQ = true;
-                }
-                else if (VKCode == 'E')
-                {
-                    input->KeyE = true;
-                }
-                else if (VKCode == VK_UP)
-                {
-                    input->KeyUp = true;
-                }
-                else if (VKCode == VK_DOWN)
-                {
-                    input->KeyDown = true;
-                }
-                else if (VKCode == VK_LEFT)
-                {
-                    input->KeyLeft = true;
-                }
-                else if (VKCode == VK_RIGHT)
-                {
-                    input->KeyRight = true;
-                }
-                else if (VKCode == VK_SPACE)
-                {
-                    input->KeySpace = true;
-                }
-                else if (VKCode == VK_SHIFT)
-                {
-                    input->KeyShift = true;
-                }
-                else if (VKCode == VK_CONTROL)
-                {
-                    input->KeyCtrl = true;
-                }
-                else if (VKCode == VK_ESCAPE)
-                {
-                    input->KeyEsc = true;
-                }
-                else if (VKCode == VK_RETURN)
-                {
-                    input->KeyEnter = true;
+
+                    if (VKCode == 'W')
+                    {
+                        input->KeyW = isDown;
+                    }
+                    else if (VKCode == 'A')
+                    {
+                        input->KeyA = isDown;
+                    }
+                    else if (VKCode == 'S')
+                    {
+                        input->KeyS = isDown;
+                    }
+                    else if (VKCode == 'D')
+                    {
+                        input->KeyD = isDown;
+                    }
+                    else if (VKCode == 'Q')
+                    {
+                        input->KeyQ = isDown;
+                    }
+                    else if (VKCode == 'E')
+                    {
+                        input->KeyE = isDown;
+                    }
+                    else if (VKCode == VK_UP)
+                    {
+                        input->KeyUp = isDown;
+                    }
+                    else if (VKCode == VK_DOWN)
+                    {
+                        input->KeyDown = isDown;
+                    }
+                    else if (VKCode == VK_LEFT)
+                    {
+                        input->KeyLeft = isDown;
+                    }
+                    else if (VKCode == VK_RIGHT)
+                    {
+                        input->KeyRight = isDown;
+                    }
+                    else if (VKCode == VK_SPACE)
+                    {
+                        input->KeySpace = isDown;
+                    }
+                    else if (VKCode == VK_SHIFT)
+                    {
+                        input->KeyShift = isDown;
+                    }
+                    else if (VKCode == VK_CONTROL)
+                    {
+                        input->KeyCtrl = isDown;
+                    }
+                    else if (VKCode == VK_ESCAPE)
+                    {
+                        input->KeyEsc = isDown;
+                    }
+                    else if (VKCode == VK_RETURN)
+                    {
+                        input->KeyEnter = isDown;
+                    }
                 }
             }
             break;
@@ -327,8 +341,6 @@ LRESULT Win32MainWindowCallBack(HWND window, UINT message, WPARAM wParam, LPARAM
             running = false;
         }
         break;
-        case WM_MOUSEMOVE:
-        case WM_MOUSEHOVER:
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP:
         case WM_KEYDOWN:
@@ -390,14 +402,11 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
     UINT desiredSchedulerMilliseconds = 1;
     bool granularSleep = timeBeginPeriod(desiredSchedulerMilliseconds);
 
-    u32 monitorRefreshRate = 60;
-    u32 gameFPS = monitorRefreshRate / 2;
-    f32 targetSecondsPerFrame = 1.0f / (f32)gameFPS;
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
     g_PerfCounterFrequency = PerfCounterFrequencyResult.QuadPart;
 
-    Win32ResizeBackBuffer(&g_BackBuffer, 1280, 720);
+    Win32ResizeBackBuffer(&g_BackBuffer, 960, 540);
 
     if (RegisterClassA(&windowClass))
     {
@@ -416,6 +425,16 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
             0);
         if (windowHandle)
         {
+            u32 monitorRefreshRate = 60;
+            HDC refreshDC = GetDC(windowHandle);
+            u32 Win32RefreshRate = GetDeviceCaps(refreshDC, VREFRESH);
+            ReleaseDC(windowHandle, refreshDC);
+            if (Win32RefreshRate > 1)
+            {
+                monitorRefreshRate = Win32RefreshRate;
+            }
+            u32 gameFPS = 30;
+            f32 targetSecondsPerFrame = 1.0f / (f32)gameFPS;
             LARGE_INTEGER lastCount = Win32GetWallClock();
             u64 lastCycleCount = __rdtsc();
 
@@ -430,11 +449,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
             gameMemory.PlatformFreeFileMemory = PlatformFreeFileMemory;
 
             GameSoundOutput soundOutput = {};
-            /*soundOutput.SampleRate = 48000;
-            soundOutput.SampleCount = soundOutput.SampleRate / 2;
-            soundOutput.Size = soundOutput.SampleCount * sizeof(i16) * 2;
-            soundOutput.Samples = (i16*)VirtualAlloc(0, soundOutput.Size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);*/
-
+            
             Win32SoundUpdate win32SoundUpdate = {};
             win32SoundUpdate.FrequencyRatio = 1.0f;
             win32SoundUpdate.VolumeLevel = 1.0f;
@@ -458,19 +473,24 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 settings.BitsPerSample = soundOutput.BitsPerSample;
 
                 Win32InitXAudio2(&settings);
-                XAUDIO2_BUFFER buffer = {};
-                buffer.AudioBytes = soundOutput.Size;
-                buffer.pAudioData = (BYTE*)soundOutput.Samples;
-                buffer.Flags = XAUDIO2_END_OF_STREAM;
-                buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
-                if (SUCCEEDED(sourceVoice->SubmitSourceBuffer(&buffer)))
+                if (soundOutput.Samples)
                 {
-                    if (SUCCEEDED(sourceVoice->Start()))
+                    XAUDIO2_BUFFER buffer = {};
+                    buffer.AudioBytes = soundOutput.Size;
+                    buffer.pAudioData = (BYTE*)soundOutput.Samples;
+                    buffer.Flags = XAUDIO2_END_OF_STREAM;
+                    buffer.LoopCount = XAUDIO2_LOOP_INFINITE;
+                    if (SUCCEEDED(sourceVoice->SubmitSourceBuffer(&buffer)))
                     {
+                        if (SUCCEEDED(sourceVoice->Start()))
+                        {
+                        }
                     }
                 }
             }
-
+            
+            GameInput gameInput = {};
+            
             while (running)
             {
                 /*FILETIME newLastWriteTime = Win32GetLastWriteTime(dllName);
@@ -479,13 +499,14 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                     Win32UnloadGameCode(&game);
                     Win32LoadGameCode(dllName);
                 }*/
-                GameInput gameInput = {};
+                gameInput.DeltaTime = targetSecondsPerFrame;
                 Win32ProcessMessages(windowHandle, &gameInput);
 
                 GameBackBuffer backBuffer = {};
                 backBuffer.Memory = g_BackBuffer.Memory;
                 backBuffer.Width = g_BackBuffer.Width;
                 backBuffer.Height = g_BackBuffer.Height;
+                backBuffer.BytesPerPixel = g_BackBuffer.BytesPerPixel;
                 backBuffer.RowStride = g_BackBuffer.RowStride;
                 game.GameUpdateAndRender(&gameMemory, &backBuffer, &soundOutput, &gameInput, &renderUpdate, &soundUpdate);
 
@@ -511,7 +532,8 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 HDC dc = GetDC(windowHandle);
                 WindowDimension dim = Win32GetWindowDimension(windowHandle);
                 Win32UpdateWindowDisplay(dc, &g_BackBuffer, dim.Width, dim.Height);
-
+                ReleaseDC(windowHandle, dc);
+#if 0
                 i32 elapsedMilliseconds = (i32)(1000.0f * elapsedSeconds);
                 u32 elapsedMegaCycle = (u32)((endCycleCount - lastCycleCount) / 1000000);
                 i32 fps = (i32)(g_PerfCounterFrequency / (endCount.QuadPart - lastCount.QuadPart));
@@ -519,7 +541,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 char buf[256];
                 wsprintfA(buf, "Time: %dms - %dfps - %d million cycles\n", elapsedMilliseconds, fps, elapsedMegaCycle);
                 OutputDebugStringA(buf);
-
+#endif
                 lastCycleCount = endCycleCount;
                 lastCount = endCount;
             }

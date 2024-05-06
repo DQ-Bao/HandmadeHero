@@ -1,7 +1,8 @@
 #pragma once
 #include "platform.h"
-#include "render.h"
-#include "sound.h"
+#include "game.h"
+
+struct GameState;
 
 struct KeyState
 {
@@ -17,14 +18,6 @@ struct MouseState
 
 struct GameInput
 {
-	bool MouseLeft;
-	bool MouseRight;
-	bool MouseMiddle;
-	bool MouseSideX;
-	bool MouseSideY;
-	i32 MouseScroll;
-	i32 MousePositionX;
-	i32 MousePositionY;
 	union
 	{
 		bool Keys[15];
@@ -47,6 +40,15 @@ struct GameInput
 			bool KeyEnter;
 		};
 	};
+	bool MouseLeft;
+	bool MouseRight;
+	bool MouseMiddle;
+	bool MouseSideX;
+	bool MouseSideY;
+	i32 MouseScroll;
+	i32 MousePositionX;
+	i32 MousePositionY;
+	f32 DeltaTime;
 };
 
-void ProcessInput(GameInput* input, RenderUpdate* render, SoundUpdate* sound);
+void ProcessInput(GameInput* input, GameState* state);
