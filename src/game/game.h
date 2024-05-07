@@ -21,28 +21,15 @@ struct GameMemory
 	PlatformLoadFile_t* PlatformLoadFile;
 };
 
-struct GameState
-{
-	RenderUpdate Render;
-	SoundUpdate Sound;
-	i32 PlayerTileMapX;
-	i32 PlayerTileMapY;
-	f32 PlayerX;
-	f32 PlayerY;
-};
-
+// x go right, y go up
 struct Position
 {
-	f32 WorldPixelX;
-	f32 WorldPixelY;
 	i32 WorldTileMapX;
 	i32 WorldTileMapY;
-	f32 TileMapPixelX;
-	f32 TileMapPixelY;
 	i32 TileMapTileX;
 	i32 TileMapTileY;
-	f32 TilePixelX;
-	f32 TilePixelY;
+	f32 TileMeterX;
+	f32 TileMeterY;
 };
 
 struct TileMap
@@ -50,15 +37,28 @@ struct TileMap
 	u32* Tiles;
 };
 
-struct WorldMap
+struct World
 {
+	f32 TileWidthMeter;
+	f32 TileHeightMeter;
+	f32 WidthMeterToPixel;
+	f32 HeightMeterToPixel;
 	f32 Left;
 	f32 Top;
-	f32 TileWidth;
-	f32 TileHeight;
+	f32 Bottom;
+	f32 TileWidthPixel;
+	f32 TileHeightPixel;
 	i32 TileMapRowCount;
 	i32 TileMapColCount;
 	i32 RowCount;
 	i32 ColCount;
 	TileMap* TileMaps;
+};
+
+struct GameState
+{
+	RenderUpdate Render;
+	SoundUpdate Sound;
+	Position PlayerPosition;
+	f32 PlayerSpeed;
 };

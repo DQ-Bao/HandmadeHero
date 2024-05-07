@@ -1,4 +1,5 @@
 #include "render.h"
+#include "intrinsics.h"
 
 void RenderGradient(GameBackBuffer* buffer, RenderUpdate* render)
 {
@@ -16,16 +17,6 @@ void RenderGradient(GameBackBuffer* buffer, RenderUpdate* render)
         }
         row += buffer->RowStride;
     }
-}
-
-inline i32 RoundF32ToI32(f32 f)
-{
-    return (i32)(f + 0.5f);
-}
-
-inline u32 RoundF32ToU32(f32 f)
-{
-    return (u32)(f + 0.5f);
 }
 
 void RenderRectangle(GameBackBuffer* buffer, 
