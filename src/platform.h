@@ -11,6 +11,7 @@ typedef int16_t i16;
 typedef int8_t i8;
 typedef float f32;
 typedef double f64;
+typedef size_t memidx;
 
 #define local_persist static
 #define global_var static
