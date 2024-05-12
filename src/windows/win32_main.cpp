@@ -28,6 +28,7 @@ struct Win32GameCode
     HMODULE GameCodeDLL;
     GameUpdateAndRender_t* GameUpdateAndRender;
     GameStartUp_t* GameStartUp;
+    GameShutdown_t* GameShutdown;
     FILETIME LastWriteTime;
     bool IsValid;
 };
@@ -66,6 +67,7 @@ internal void Win32UnloadGameCode(Win32GameCode* gameCode)
     }
     gameCode->GameStartUp = GameStartUpStub;
     gameCode->GameUpdateAndRender = GameUpdateAndRenderStub;
+    gameCode->GameShutdown = GameShutdownStub;
     gameCode->IsValid = false;
 }
 
@@ -79,6 +81,7 @@ internal Win32GameCode Win32LoadGameCode(char* filename)
     {
         result.GameStartUp = (GameStartUp_t*)GetProcAddress(result.GameCodeDLL, "GameStartUp");
         result.GameUpdateAndRender = (GameUpdateAndRender_t*)GetProcAddress(result.GameCodeDLL, "GameUpdateAndRender");
+        result.GameShutdown = (GameShutdown_t*)GetProcAddress(result.GameCodeDLL, "GameShutdown");
         result.IsValid = result.GameStartUp && result.GameUpdateAndRender;
     }
     
@@ -86,6 +89,7 @@ internal Win32GameCode Win32LoadGameCode(char* filename)
     {
         result.GameUpdateAndRender = GameUpdateAndRenderStub;
         result.GameStartUp = GameStartUpStub;
+        result.GameShutdown = GameShutdownStub;
     }
     return result;
 }
@@ -104,7 +108,7 @@ internal void Win32ResizeBackBuffer(Win32BackBuffer* buffer, i32 width, i32 heig
 
     buffer->Info.bmiHeader.biSize = sizeof(buffer->Info.bmiHeader);
     buffer->Info.bmiHeader.biWidth = buffer->Width;
-    buffer->Info.bmiHeader.biHeight = -buffer->Height;
+    buffer->Info.bmiHeader.biHeight = -buffer->Height; ///\NOTE bitmap is top-down DIB
     buffer->Info.bmiHeader.biPlanes = 1;
     buffer->Info.bmiHeader.biBitCount = 32;
     buffer->Info.bmiHeader.biCompression = BI_RGB;
@@ -170,7 +174,7 @@ POUND_PLATFORM_FREE_FILE_MEMORY(PlatformFreeFileMemory)
 
 POUND_PLATFORM_LOAD_FILE(PlatformLoadFile)
 {
-    void* memory = 0;
+    File result = {};
     HANDLE file = CreateFileA(
         fileName,
         GENERIC_READ,
@@ -181,31 +185,32 @@ POUND_PLATFORM_LOAD_FILE(PlatformLoadFile)
         0);
     if (file == INVALID_HANDLE_VALUE)
     {
-        return 0;
+        return result;
     }
     LARGE_INTEGER fileSize;
     if (!GetFileSizeEx(file, &fileSize))
     {
         CloseHandle(file);
-        return 0;
+        return result;
     }
     Assert(fileSize.QuadPart <= 0xffffffff);
-    u32 fileSize32 = (u32)fileSize.QuadPart;
-    memory = VirtualAlloc(0, fileSize32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-    if (memory)
+    result.Size = (u32)fileSize.QuadPart;
+    result.Data = VirtualAlloc(0, result.Size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (result.Data)
     {
         DWORD read;
-        if (ReadFile(file, memory, fileSize32, &read, 0) && (read == fileSize32))
+        if (ReadFile(file, result.Data, result.Size, &read, 0) && (read == result.Size))
         {
         }
         else
         {
-            PlatformFreeFileMemory(memory);
-            memory = 0;
+            PlatformFreeFileMemory(result.Data);
+            result.Data = 0;
+            result.Size = 0;
         }
     }
     CloseHandle(file);
-    return memory;
+    return result;
 }
 
 internal void Win32ProcessMessages(HWND window, GameInput* input)
@@ -545,6 +550,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine, int
                 lastCycleCount = endCycleCount;
                 lastCount = endCount;
             }
+            game.GameShutdown(&gameMemory);
             if (soundOutput.Samples)
             {
                 VirtualFree(soundOutput.Samples, 0, MEM_RELEASE);

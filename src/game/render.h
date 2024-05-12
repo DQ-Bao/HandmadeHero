@@ -20,3 +20,5 @@ void RenderGradient(GameBackBuffer* buffer, RenderUpdate* render);
 void RenderRectangle(GameBackBuffer* buffer, 
                      f32 fMinX, f32 fMinY, f32 fMaxX, f32 fMaxY,
                      f32 red, f32 green, f32 blue);
+void RenderBitmap(GameBackBuffer* buffer, u8* bitmap, u32 bytesPerPixel, u32 colorMask, 
+                  f32 fMinX, f32 fMinY, f32 fMaxX, f32 fMaxY);

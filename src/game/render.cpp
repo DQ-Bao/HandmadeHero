@@ -57,3 +57,44 @@ void RenderRectangle(GameBackBuffer* buffer,
         row += buffer->RowStride;
     }
 }
+
+void RenderBitmap(GameBackBuffer* buffer, u8* bitmap, u32 bytesPerPixel, u32 colorMask, f32 fMinX, f32 fMinY, f32 fMaxX, f32 fMaxY)
+{
+    i32 minX = RoundF32ToI32(fMinX);
+    i32 minY = RoundF32ToI32(fMinY);
+    i32 maxX = RoundF32ToI32(fMaxX);
+    i32 maxY = RoundF32ToI32(fMaxY);
+    if (minX < 0)
+    {
+        minX = 0;
+    }
+    if (minY < 0)
+    {
+        minY = 0;
+    }
+    if (maxX > buffer->Width)
+    {
+        maxX = buffer->Width;
+    }
+    if (maxY > buffer->Height)
+    {
+        maxY = buffer->Height;
+    }
+    i32 bitmapWidth = maxX - minX;
+    i32 bitmapHeight = maxY - minY;
+    i32 bitmapRowStride = bytesPerPixel * bitmapWidth;
+    u8* row = (u8*)buffer->Memory + minX * buffer->BytesPerPixel + minY * buffer->RowStride;
+    u8* colorRow = bitmap + (bitmapHeight - 1) * bitmapRowStride;
+    for (i32 y = minY; y < maxY; y++)
+    {
+        u32* pixel = (u32*)row;
+        u32* color = (u32*)colorRow;
+        for (i32 x = minX; x < maxX; x++)
+        {
+            *pixel++ = (*color & colorMask);
+            color = (u32*)((u8*)color + bytesPerPixel);
+        }
+        colorRow -= bitmapRowStride;
+        row += buffer->RowStride;
+    }
+}

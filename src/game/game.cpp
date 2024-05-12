@@ -24,18 +24,25 @@ bool IsTileMapPointEmpty(TileMap* map, TileMapPosition* pos)
     TileChunk* chunk = GetChunk(map, chunkPos.ChunkX, chunkPos.ChunkY);
     if (chunk)
     {
-        empty = GetTileValue(map, chunk, chunkPos.ChunkTileX, chunkPos.ChunkTileY) == 0;
+        empty = GetTileValue(map, chunk, chunkPos.ChunkTileX, chunkPos.ChunkTileY) == TILE_EMPTY;
     }
     return empty;
 }
 
-void SetTileValue(TileMap* map, u32 col, u32 row, u32 value)
+void SetTileValue(MemoryArena* arena, TileMap* map, u32 col, u32 row, u32 value)
 {
     TileChunkPosition chunkPos = GetChunkPosition(map, col, row);
     TileChunk* chunk = GetChunk(map, chunkPos.ChunkX, chunkPos.ChunkY);
     Assert(chunk);
-    if (chunk)
+    if (!chunk || !chunk->Tiles)
     {
-        chunk->Tiles[chunkPos.ChunkTileY * map->ChunkSize + chunkPos.ChunkTileX] = value;
+        u32 chunkIdx = row * map->ChunkCountX + col;
+        u32 tileCount = map->ChunkSize * map->ChunkSize;
+        chunk->Tiles = PushArray(arena, tileCount, u32);
+        for (u32 i = 0; i < tileCount; i++)
+        {
+            chunk->Tiles[i] = TILE_EMPTY;
+        }
     }
+    chunk->Tiles[chunkPos.ChunkTileY * map->ChunkSize + chunkPos.ChunkTileX] = value;
 }

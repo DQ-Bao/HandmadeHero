@@ -1,5 +1,11 @@
 #pragma once
 #include "platform.h"
+#include "sound.h"
+#include "render.h"
+#include "memory.h"
+#define TILE_INVALID 0
+#define TILE_EMPTY 1
+#define TILE_WALL 2
 
 struct TileChunkPosition
 {
@@ -34,10 +40,6 @@ struct TileMap
 	u32 ChunkSize;
 	f32 TileWidthMeter;
 	f32 TileHeightMeter;
-	f32 WidthMeterToPixel;
-	f32 HeightMeterToPixel;
-	f32 TileWidthPixel;
-	f32 TileHeightPixel;
 	u32 ChunkCountY;
 	u32 ChunkCountX;
 	TileChunk* TileChunks;
@@ -48,13 +50,29 @@ struct World
 	TileMap* TileMap;
 };
 
+struct GameState
+{
+	MemoryArena WorldArena;
+	World* World;
+	RenderUpdate Render;
+	SoundUpdate Sound;
+	TileMapPosition PlayerPosition;
+	f32 PlayerSpeed;
+	File Image;
+};
+
 inline u32 GetTileValue(TileMap* map, TileChunk* chunk, u32 col, u32 row)
 {
 	Assert(chunk);
 	Assert(col < map->ChunkSize);
 	Assert(row < map->ChunkSize);
-	i32 idx = row * map->ChunkSize + col;
-	return chunk->Tiles[idx];
+	u32 value = TILE_INVALID;
+	if (chunk && chunk->Tiles)
+	{
+		i32 idx = row * map->ChunkSize + col;
+		value = chunk->Tiles[idx];
+	}
+	return value;
 }
 
 inline TileChunk* GetChunk(TileMap* map, u32 col, u32 row)
@@ -80,4 +98,4 @@ inline TileChunkPosition GetChunkPosition(TileMap* map, u32 tileX, u32 tileY)
 
 void GetLegitPosition(TileMap* map, TileMapPosition* pos);
 bool IsTileMapPointEmpty(TileMap* map, TileMapPosition* pos);
-void SetTileValue(TileMap* map, u32 col, u32 row, u32 value);
+void SetTileValue(MemoryArena* arena, TileMap* map, u32 col, u32 row, u32 value);

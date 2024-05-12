@@ -9,7 +9,7 @@ add_compile_options(-ZI -GR- -Oi -W4 -WX -wd4201 -wd4100 -wd4189 -wd4505)
 
 project(HandmadeHero)
 
-file(GLOB SOURCES CONFIGURE_DEPENDS src/game/*.cpp)
+file(GLOB SOURCES CONFIGURE_DEPENDS src/game/*.cpp src/game/utils/*.cpp)
 add_library(${PROJECT_NAME}Lib SHARED ${SOURCES})
 
 if (WIN32)
